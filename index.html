@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="MoCapAnything: Unified 3D Motion Capture for Arbitrary Skeletons from Monocular Videos">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoCapAnything</title>
+
+  <!-- Fonts & CSS -->
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+
+  <!-- Scripts -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="static/js/fontawesome.all.min.js"></script>
+
+  <style>
+    .friendly-desc {
+      font-size: 1.05rem;
+      color: #555;
+      width: 80%;
+      margin: 0 auto 20px auto;
+      text-align: left;
+      line-height: 1.5em;
+    }
+
+    /* Your original label styles preserved */
+    .column-7labels, .column-3labels, .column-4labels, .column-4labels_new,
+    .column-5labels, .column-6labels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px,1fr));
+        margin-top: 10px;
+        font-weight: bold;
+        font-size: 18px;
+        width: 80%;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 99;
+      background: white;
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+      margin-bottom: 20px;
+    }
+    nav a {
+      margin: 0 15px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #3273dc;
+    }
+    nav a:hover {
+      text-decoration: underline;
+    }
+  </style>
+
+</head>
+
+<body>
+<div class="wrapper" style="width: 80%;">
+
+<!-- ================= TITLE ================= -->
+<section class="hero">
+  <div class="hero-body">
+    <div class="container has-text-centered">
+      <h1 class="title is-2">
+        MoCapAnything: Unified 3D Motion Capture for Arbitrary Skeletons from Monocular Videos
+      </h1>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AUTHORS ================= -->
+<section class="section">
+  <div class="container has-text-centered">
+
+    <h2 class="title is-4">Authors</h2>
+
+    <p style="font-size: 1.1rem; line-height: 1.6;">
+      <b>Kehong Gong</b><sup>*1</sup>,
+      <b>Zhengyu Wen</b><sup>*2</sup>,
+      <b>Weixia He</b><sup>2</sup>,
+      <b>Mingxi Xu</b><sup>2</sup>,
+      <b>Qi Wang</b><sup>2</sup>,
+      <b>Ning Zhang</b><sup>2</sup>,
+      <b>Zhengyu Li</b><sup>2</sup>,<br>
+      <b>Dongze Lian</b><sup>2</sup>,
+      <b>Wei Zhao</b><sup>2</sup>,
+      <b>Xiaoyu He</b><sup>2</sup>,
+      <b>Mingyuan Zhang</b><sup>†2</sup>
+    </p>
+
+    <p style="font-size: 1rem; margin-top: 10px;">
+      <sup>1</sup>Huawei Technologies Co., Ltd.<br>
+      <sup>2</sup>Huawei Central Media Technology Institute
+    </p>
+
+    <p style="font-size:0.9rem; margin-top: 8px;">
+      <sup>*</sup>Equal Contributions &nbsp;&nbsp; <sup>†</sup>Corresponding Author
+    </p>
+
+  </div>
+</section>
+
+<!-- ================= ABSTRACT ================= -->
+<section class="section">
+  <div class="container">
+    <h2 class="title is-3 has-text-centered">Abstract</h2>
+    <div class="content has-text-justified">
+      <p>
+        Motion capture now underpins content creation far beyond digital humans, yet most pipelines remain species- or template-specific. 
+        We formalize this gap as Category-Agnostic Motion Capture (CAMoCap): given a monocular video and an arbitrary rigged 3D asset as a prompt, 
+        the goal is to reconstruct a rotation-based animation (e.g., BVH) that directly drives the specific asset. We present MoCapAnything, 
+        a reference-guided, factorized framework that first predicts 3D joint trajectories and then recovers asset-specific rotations 
+        via constraint-aware Inverse Kinematics (IK) Fitting. MoCapAnything comprises three learnable modules and a lightweight IK stage: 
+        a Reference Prompt Encoder that distills per-joint queries from the asset’s skeleton, mesh, and rendered image set; a Video Feature 
+        Extractor that computes dense visual descriptors and reconstructs a coarse 4D deforming mesh to bridge the modality gap between RGB tokens 
+        and the point-cloud–like joint space; and a Unified Motion Decoder that fuses these cues to produce temporally coherent trajectories. 
+        We also curate Truebones Zoo with 1,038 motion clips, each providing a standardized skeleton–mesh–rendered-video triad. Experiments on 
+        in-domain benchmarks and in-the-wild videos show that \name delivers high-quality skeletal animations and exhibits non-trivial cross-species 
+        retargeting across heterogeneous rigs, offering a scalable path toward prompt-based 3D motion capture for arbitrary assets.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= NAVIGATION (now AFTER ABSTRACT) ================= -->
+<nav class="has-text-centered">
+  <a href="#mocap">Mocap Results</a>
+  <a href="#retarget">Retargeting Results</a>
+  <a href="#ik">IK Fitting Results</a>
+</nav>
+
+<!-- ================= METHOD ================= -->
+<section class="section">
+  <div class="container has-text-centered">
+    <h2 class="title is-3">Method</h2>
+
+    <img style="width: 80%;" src="static/images/MoCapAnything_framework.png">
+    <p><i>Figure: Overview of our modular pipeline.</i></p>
+
+    <div class="friendly-desc">
+      Detailed architecture of our method. A multi-modal Reference Prompt Encoder fuses mesh, skeleton, and appearance of the target
+      asset into per-joint queries. A monocular video is converted into a 4D mesh sequence, and both mesh and video features are extracted. The
+      Unified Motion Decoder fuses these signals via multi-branch attention to predict 3D keypoints, which are converted to asset-specific joint
+      rotations via an optimization-based IK layer.
+    </div>
+  </div>
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ===================== 1. MOCAP ========================== -->
+<!-- ========================================================= -->
+<section id="mocap" class="section">
+  <div class="container has-text-centered">
+
+    <h2 class="title is-3">1. Monocular Motion Capture</h2>
+
+    <div class="friendly-desc">
+      Below we show MoCapAnything results on zoo animals, Objaverse assets, and in-the-wild videos.
+    </div>
+
+    <!-- ====== Genzoo Comparison ====== -->
+    <h3 class="title is-4">1.1 Comparison with GenZoo</h3>
+
+    <div class="column-4labels_new">
+      <span>GT Video</span>
+      <span>GT Skeleton</span>
+      <span>Ours Skeleton</span>
+      <span>GenZoo Skeleton</span>
+    </div>
+
+    <video autoplay loop muted playsinline style="width:80%;margin:0 auto 20px auto;">
+      <source src="static/images/output_videos/compare_genzoo_grid.mp4">
+    </video>
+
+    <div class="friendly-desc">
+      Our predictions show smoother trajectories and stronger multi-species stability than GenZoo.
+      To the best of our knowledge, GenZoo is currently the method that supports the widest range of animal species, but it is restricted to quadruped skeletons. In contrast, our framework naturally generalizes to arbitrary skeletal structures — including bipeds, birds, reptiles, and even non-biological rigs.
+    </div>
+
+    <!-- ====== Zoo Mocap ====== -->
+    <h3 class="title is-4">1.2 Mocap: Truebones Zoo</h3>
+
+    <div class="column-6labels">
+      <span>GT Video</span><span>GT Skeleton</span><span>Ours</span>
+      <span>GT Video</span><span>GT Skeleton</span><span>Ours</span>
+    </div>
+
+    <video autoplay loop muted playsinline style="width:80%;">
+      <source src="static/images/output_videos/mocap_zoo_grid_side_by_side.mp4">
+    </video>
+
+    <!-- ====== Objaverse Mocap ====== -->
+    <h3 class="title is-4">1.3 Mocap: Objaverse</h3>
+
+    <div class="column-6labels">
+      <span>GT Video</span><span>GT Skeleton</span><span>Ours</span>
+      <span>GT Video</span><span>GT Skeleton</span><span>Ours</span>
+    </div>
+
+    <video autoplay loop muted playsinline style="width:80%;">
+      <source src="static/images/output_videos/mocap_obj1k_grid_side_by_side.mp4">
+    </video>
+
+    <!-- ====== Wild Mocap ====== -->
+    <h3 class="title is-4">1.4 Mocap: In-the-Wild</h3>
+
+    <div class="column-4labels">
+      <span>GT Video</span><span>Ours Skeleton</span>
+      <span>GT Video</span><span>Ours Skeleton</span>
+    </div>
+    <video autoplay loop muted playsinline style="width:80%;margin-bottom:20px;">
+      <source src="static/images/output_videos/mocap_wild_grid_5s_side_by_side.mp4">
+    </video>
+
+    <div class="column-4labels">
+      <span>GT Video</span><span>Ours Skeleton</span>
+      <span>GT Video</span><span>Ours Skeleton</span>
+    </div>
+    <video autoplay loop muted playsinline style="width:80%;margin-bottom:20px;">
+      <source src="static/images/output_videos/mocap_wild_grid_3s_side_by_side.mp4">
+    </video>
+
+    <div class="column-4labels">
+      <span>GT Video</span><span>Ours Skeleton</span>
+      <span>GT Video</span><span>Ours Skeleton</span>
+    </div>
+    <video autoplay loop muted playsinline style="width:80%;margin-bottom:20px;">
+      <source src="static/images/output_videos/mocap_wild_grid_2s_side_by_side.mp4">
+    </video>
+    
+    <div class="friendly-desc">
+      Our method demonstrates robust mocap abilities across humans and animals, and generalizes to in-the-wild videos covering every kind of species — flying, running, swimming; bipeds, quadrupeds, multi-leg creatures, and even limbless skeletons — effectively supporting arbitrary skeletal structures.
+    </div>
+
+  </div>
+</section>
+
+
+
+<!-- ========================================================= -->
+<!-- ================= 2. RETARGETING ======================== -->
+<!-- ========================================================= -->
+<section id="retarget" class="section">
+  <div class="container has-text-centered">
+
+    <h2 class="title is-3">2. Cross-Species Motion Retargeting</h2>
+
+    <div class="friendly-desc">
+      Our model is never trained for retargeting, yet its design naturally enables motion transfer across any skeleton. Here we showcase a variety of cross-species behaviors—animal-to-animal, human-to-animal, animal-to-human, and even wild-video inputs. The results often reveal entertaining combinations: quadrupeds attempting to fly, birds trying to run, animals performing human actions, and humans imitating animal behaviors such as rolling, gliding, or even slithering like a snake.
+    </div>
+
+    <!-- ===== Zoo → Zoo ===== -->
+    <h3 class="title is-4">2.1 Zoo → Zoo</h3>
+
+    <div style="display:flex;justify-content:center;align-items:stretch;gap:20px;">
+      <!-- Left column of species names -->
+      <div style="display:flex;flex-direction:column;min-width:120px;">
+        <div style="flex:1;"></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Eagle</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Jaguar</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Lion</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Parrot</span></div>
+      </div>
+
+      <div style="width:80%;display:flex;flex-direction:column;">
+        <div style="width:100%;display:flex;margin-bottom:10px;">
+          <div style="flex:1;text-align:center;font-weight:bold;">Reference</div>
+          <div style="flex:1;text-align:center;font-weight:bold;">Crocodile</div>
+          <div style="flex:1;text-align:center;font-weight:bold;">Dog</div>
+          <div style="flex:1;text-align:center;font-weight:bold;">Eagle</div>
+          <div style="flex:1;text-align:center;font-weight:bold;">Jaguar</div>
+        </div>
+
+        <video autoplay loop muted playsinline style="width:100%;">
+          <source src="static/images/output_videos/retarget_zoo-zoo_video.mp4">
+        </video>
+        <div class="friendly-desc">
+          Interesting results: birds attempting quadruped walking, and leopards attempting to fly.        
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== Human → Zoo ===== -->
+    <h3 class="title is-4">2.2 Human → Zoo</h3>
+
+    <div style="display:flex;justify-content:center;gap:20px;">
+      <!-- Left column of species names -->
+      <div style="display:flex;flex-direction:column;min-width:120px;">
+        <div style="flex:1;"></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Lion</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Ostrich</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">PolarBearB</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Turtle</span></div>
+      </div>
+
+
+      <div style="width:80%;display:flex;flex-direction:column;">
+        <div style="width:100%;display:flex;margin-bottom:10px;">
+          <span style="flex:1;text-align:center;font-weight:bold;">Reference</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Human_1</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Human_2</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Human_3</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Human_4</span>
+        </div>
+
+        <video autoplay loop muted playsinline style="width:100%;">
+          <source src="static/images/output_videos/retarget_zoo-obj1k_video.mp4">
+        </video>
+        <div class="friendly-desc">
+          Interesting results: animals can mimic human actions, whether they are birds or quadrupeds..        
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== Zoo → Human (Part 1) ===== -->
+    <h3 class="title is-4">2.3 Zoo → Human (Part 1)</h3>
+    <div style="display:flex;justify-content:center;gap:20px;">
+      <!-- Left column of species names -->
+      <div style="display:flex;flex-direction:column;min-width:120px;">
+        <div style="flex:1;"></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_1</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_2</span></div>
+      </div>
+
+      <div style="width:80%;display:flex;flex-direction:column;">
+        <div style="display:flex;width:100%;margin-bottom:10px;">
+          <span style="flex:1;text-align:center;font-weight:bold;">Reference</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Hamster</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Ostrich</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">PolarBearB</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Turtle</span>
+        </div>
+
+        <video autoplay loop muted playsinline style="width:100%;">
+          <source src="static/images/output_videos/retarget_obj1k-zoo_video_p1.mp4">
+        </video>
+        <div class="friendly-desc">
+          Interesting results: humans can mimic animal behaviors—rolling like a reptile, flapping like a bird, or walking like a quadruped.        
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Zoo → Human (Part 2) ===== -->
+    <h3 class="title is-4">2.4 Zoo → Human (Part 2)</h3>
+    <div style="display:flex;justify-content:center;gap:20px;">
+      <!-- Left column of species names -->
+      <div style="display:flex;flex-direction:column;min-width:120px;">
+        <div style="flex:1;"></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_1</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_2</span></div>
+      </div>
+
+      <div style="width:80%;display:flex;flex-direction:column;">
+        <div style="display:flex;width:100%;margin-bottom:10px;">
+          <span style="flex:1;text-align:center;font-weight:bold;">Reference</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Anaconda</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Horse</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Lion</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Parrot</span>
+        </div>
+
+        <video autoplay loop muted playsinline style="width:100%;">
+          <source src="static/images/output_videos/retarget_obj1k-zoo_video_p2.mp4">
+        </video>
+        <div class="friendly-desc">
+          Interesting results: humans can even imitate the movements of a snake. (PS: The horse skeleton includes numerous non-anatomical joints (e.g., reins and saddle attachments), increasing the difficulty of retargeting.)       
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===== Wild → Human ===== -->
+    <h3 class="title is-4">2.5 Wild → Human</h3>
+
+    <div style="display:flex;justify-content:center;gap:20px;">
+      <!-- Left column of species names -->
+      <div style="display:flex;flex-direction:column;min-width:120px;">
+        <div style="flex:1;"></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_1</span></div>
+        <div style="flex:1;display:flex;justify-content:center;align-items:center;"><span class="label-font">Human_2</span></div>
+      </div>
+
+      <div style="width:80%;display:flex;flex-direction:column;">
+        <div style="display:flex;width:100%;margin-bottom:10px;">
+          <span style="flex:1;text-align:center;font-weight:bold;">Reference</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Eagle</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Leopard</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">Lion</span>
+          <span style="flex:1;text-align:center;font-weight:bold;">PolarBear</span>
+        </div>
+
+        <video autoplay loop muted playsinline style="width:100%;">
+          <source src="static/images/output_videos/retarget_zooobj1k-wild_video.mp4">
+        </video>
+        <div class="friendly-desc">
+          Our method performs well on real in-the-wild videos as well, provided that the foreground subject is pre-segmented.        
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+
+<!-- ========================================================= -->
+<!-- ======================= 3. IK =========================== -->
+<!-- ========================================================= -->
+<section id="ik" class="section">
+  <div class="container has-text-centered">
+
+    <h2 class="title is-3">3. Constraint-Aware IK Fitting</h2>
+
+    <div class="friendly-desc">
+      We convert predicted 3D joint trajectories into rotation-based BVH animations while 
+      respecting rigid-body constraints, hierarchy, and joint limits.
+    </div>
+
+    <div class="column-4labels">
+      <span>Input Joints</span>
+      <span>IK Result</span>
+      <span>Input Joints</span>
+      <span>IK Result</span>
+    </div>
+
+    <video autoplay loop muted playsinline style="width:80%;">
+      <source src="static/images/output_videos/ikDemo.mp4">
+    </video>
+
+  </div>
+</section>
+
+
+</div>
+</body>
+</html>
+
+
+<!-- ================= CITATION ================= -->
+<section class="section">
+  <div class="container has-text-centered">
+
+    <h2 class="title is-4">Citation</h2>
+    <p class="friendly-desc" style="text-align:center; width:60%; margin-top:15px;">
+      If you find our work useful, please cite:
+    </p>
+
+<pre style="text-align:left; width:70%; margin:0 auto; background:#f7f7f7; padding:15px; border-radius:8px; font-size:0.9rem;">
+@article{gong2025mocapanything,
+  title={MoCapAnything: Unified 3D Motion Capture for Arbitrary Skeletons from Monocular Videos},
+  author={Gong, Kehong and Wen, Zhengyu and He, Weixia and Xu, Mingxi and 
+          Wang, Qi and Zhang, Ning and Li, Zhengyu and 
+          Lian, Dongze and Zhao, Wei and He, Xiaoyu and Zhang, Mingyuan},
+  journal={arXiv preprint arXiv:2501.xxxxx},
+  year={2025}
+}
+</pre>
+
+  </div>
+</section>
